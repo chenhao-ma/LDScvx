@@ -134,45 +134,100 @@ void Graph::pava() {
 }
 
 void Graph::check_sg() {
+    sort(slt_edges.begin(), slt_edges.end(), [this](int a, int b)->bool {
+        int a1 = min(sg[edges[a].first], sg[edges[a].second]);
+        int a2 = max(sg[edges[a].first], sg[edges[a].second]);
+        int b1 = min(sg[edges[b].first], sg[edges[b].second]);
+        int b2 = max(sg[edges[b].first], sg[edges[b].second]);
+        if (a1 != b1)
+            return a1 < b1;
+        else
+            return a2 < b2;
+    });
     vector<bool> valid(nsg);
-    queue<pair<int, double>> q;
+    vector<int> bin(nsg + 1, 0);
+    for (int i = 0; i < slt_edges.size(); i++) {
+        int a = min(sg[edges[slt_edges[i]].first], sg[edges[slt_edges[i]].second]);
+        ++bin[a];
+    }
+    int s = 0;
+    for (int i = 0; i <= nsg; i++) {
+        int tmp = s;
+        s += bin[i];
+        bin[i] = tmp;
+    }
+
+    vector<double> max_r(nsg);
     int cur = 0;
-    for (int i = 0; i < nsg - 1; i++){
-        cur += nag[i];
-        for (auto e : slt_edges) {
-            int u = edges[e].first, v = edges[e].second;
-            if (min(sg[u], sg[v]) <= i && max(sg[u], sg[v]) > i) {
-                q.push(make_pair(e, alpha[e]));
-                if (sg[u] > sg[v]) {
-                    r[u] += 1 - alpha[e];
-                    r[v] -= 1 - alpha[e];
-                    alpha[e] = 1;
-                } else if (sg[u] < sg[v]) {
-                    r[u] -= alpha[e];
-                    r[v] += alpha[e];
-                    alpha[e] = 0;
-                }
-            }
+    for (int i = 0; i < nsg; i++) {
+        max_r[i] = r[slt_nodes[cur]];
+//        double tmp_min = r[slt_nodes[cur]];
+        for (int j = cur + 1; j < cur + nag[i]; j++) {
+            max_r[i] = max(max_r[i], r[slt_nodes[j]]);
+//            tmp_min = min(tmp_min, r[slt_nodes[j]]);
         }
-        double min_r = r[slt_nodes[0]];
-        for (int j = 0; j < cur; j++) {
+//        printf("%d %d %.4f %.4f\n", i, cur, max_r[i], tmp_min);
+        cur += nag[i];
+    }
+
+    double min_r = r[slt_nodes[0]];
+    cur = 0;
+    vector<int> cpt(bin);
+    for (int i = 0; i < nsg - 1; i++) {
+        for (int j = cur; j < cur + nag[i]; j++) {
             min_r = min(min_r, r[slt_nodes[j]]);
         }
-        double max_r = r[slt_nodes[cur]];
-        for (int j = cur; j < slt_nodes.size(); j++) {
-            max_r = max(max_r, r[slt_nodes[j]]);
+        double min_t = min_r;
+        vector<double> max_tmp(max_r.begin() + i + 1, max_r.end());
+        double max_t = *max_element(begin(max_tmp), end(max_tmp));
+//        printf("%.4f %.4f\n", min_t, max_t);
+        queue<tuple<int, int, double>> q;
+        valid[i] = true;
+        for (int j = 0; j <= i; j++) {
+            while (cpt[j] < bin[j + 1]) {
+                int e = slt_edges[cpt[j]];
+                if (max(sg[edges[e].first], sg[edges[e].second]) > i) {
+                    q.push(make_tuple(j, cpt[j], alpha[e]));
+                    int u = edges[e].first;
+                    int v = edges[e].second;
+                    if (sg[u] > sg[v]) {
+                        r[u] += 1 - alpha[e];
+                        r[v] -= 1 - alpha[e];
+                        max_r[sg[u]] = max(max_r[sg[u]], r[u]);
+                        max_t = max(max_t, r[u]);
+                        min_t = min(min_t, r[v]);
+                        alpha[e] = 1;
+                    } else {
+                        r[u] -= alpha[e];
+                        r[v] += alpha[e];
+                        min_t = min(min_t, r[u]);
+                        max_r[sg[v]] = max(max_r[sg[v]], r[v]);
+                        max_t = max(max_t, r[v]);
+                        alpha[e] = 0;
+                    }
+                    if (min_t <= max_t) {
+                        valid[i] = false;
+                        break;
+                    }
+                }
+                ++cpt[j];
+            }
+            if (!valid[i]) break;
         }
-        printf("%d %.4f %.4f\n", i, min_r, max_r);
-        if (min_r > max_r) {
-            valid[i] = true;
+        if (valid[i]) {
+            min_r = min(min_t, min_r);
         } else {
-            valid[i] = false;
+            for (int j = i + 1; j < max_r.size(); j++) {
+                max_r[j] = max_tmp[j - i - 1];
+            }
             while (!q.empty()) {
-                auto tmp = q.front(); q.pop();
-                int u = edges[tmp.first].first, v = edges[tmp.first].second;
-                r[u] += tmp.second - alpha[tmp.first];
-                r[v] -= tmp.second - alpha[tmp.first];
-                alpha[tmp.first] = tmp.second;
+                auto tp = q.front(); q.pop();
+                cpt[get<0>(tp)] = min(cpt[get<0>(tp)], get<1>(tp));
+                int e = slt_edges[get<1>(tp)];
+                int u = edges[e].first, v = edges[e].second;
+                r[u] += get<2>(tp) - alpha[e];
+                r[v] -= get<2>(tp) - alpha[e];
+                alpha[e] = get<2>(tp);
             }
         }
     }
@@ -208,6 +263,82 @@ void Graph::check_sg() {
     printf("updated nsg %d\n", nsg);
 
 }
+
+//void Graph::check_sg() {
+//    vector<bool> valid(nsg);
+//    queue<pair<int, double>> q;
+//    int cur = 0;
+//    for (int i = 0; i < nsg - 1; i++){
+//        cur += nag[i];
+//        for (auto e : slt_edges) {
+//            int u = edges[e].first, v = edges[e].second;
+//            if (min(sg[u], sg[v]) <= i && max(sg[u], sg[v]) > i) {
+//                q.push(make_pair(e, alpha[e]));
+//                if (sg[u] > sg[v]) {
+//                    r[u] += 1 - alpha[e];
+//                    r[v] -= 1 - alpha[e];
+//                    alpha[e] = 1;
+//                } else if (sg[u] < sg[v]) {
+//                    r[u] -= alpha[e];
+//                    r[v] += alpha[e];
+//                    alpha[e] = 0;
+//                }
+//            }
+//        }
+//        double min_r = r[slt_nodes[0]];
+//        for (int j = 0; j < cur; j++) {
+//            min_r = min(min_r, r[slt_nodes[j]]);
+//        }
+//        double max_r = r[slt_nodes[cur]];
+//        for (int j = cur; j < slt_nodes.size(); j++) {
+//            max_r = max(max_r, r[slt_nodes[j]]);
+//        }
+//        printf("%d %.4f %.4f\n", i, min_r, max_r);
+//        if (min_r > max_r) {
+//            valid[i] = true;
+//        } else {
+//            valid[i] = false;
+//            while (!q.empty()) {
+//                auto tmp = q.front(); q.pop();
+//                int u = edges[tmp.first].first, v = edges[tmp.first].second;
+//                r[u] += tmp.second - alpha[tmp.first];
+//                r[v] -= tmp.second - alpha[tmp.first];
+//                alpha[tmp.first] = tmp.second;
+//            }
+//        }
+//    }
+//
+//    check_first = (nsg == 1) || valid[0];
+//    //merge stable groups
+//    if (nsg > 1) {
+//        vector<int> n_nag;
+//        for (int i = 0; i < nsg; i++) {
+//            if (i == 0 || valid[i - 1]) {
+//                n_nag.push_back(nag[i]);
+//            } else {
+//                n_nag[n_nag.size() - 1] += nag[i];
+//            }
+//        }
+//        nag = n_nag;
+//
+//        cur = 0;
+//        nsg = nag.size();
+//        double minr = m;
+//        for (int i = 0; i < nsg; i++) {
+//            printf("nsg %d %d ", i, nag[i]);
+//            double tmp_r = m;
+//            for (int j = cur; j < cur + nag[i]; j++) {
+//                sg[slt_nodes[j]] = i;
+//                tmp_r = min(tmp_r, r[slt_nodes[j]]);
+//                minr = min(minr, r[slt_nodes[j]]);
+//            }
+//            printf("%.4f %.4f\n", minr, tmp_r);
+//            cur += nag[i];
+//        }
+//    }
+//    printf("updated nsg %d\n", nsg);
+//
+//}
 
 //void Graph::check_sg() {
 //    sort(slt_edges.begin(), slt_edges.end(), [this](int a, int b)->bool {
