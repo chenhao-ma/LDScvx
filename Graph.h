@@ -29,9 +29,11 @@ private:
     int topk;
     int nsg;
     int max_d;
+    int num_verify;
     bool check_first = false;
     vector<vector<int>> adj;
     vector<bool> selected;
+    vector<bool> active;
     vector<int> slt_nodes;
     vector<int> slt_edges;
     stack<vector<int>> stk_nodes;
@@ -53,6 +55,7 @@ private:
     vector<int> nag;
     vector<int> fa;
     vector<pair<int, int>> cmpt;
+    vector<int> veri_vtx;
 
     void frank_wolfe();
     void pava();
@@ -60,7 +63,7 @@ private:
     void pruning();
     void compute_core();
     void prune_by_core();
-    bool verify_LDS();
+    bool verify_LDS(double g);
     int find_fa(int x);
     void connected_components();
 };

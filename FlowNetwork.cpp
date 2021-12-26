@@ -4,15 +4,18 @@
 
 #include "FlowNetwork.h"
 
-FlowNetwork::FlowNetwork(vector<pair<int, int>> edges, double g) {
+FlowNetwork::FlowNetwork(vector<pair<int, int>> edges, double g, bool LDSvalidate) {
     n = 0;
+    ori_id.push_back(0);
     for (auto & edge : edges) {
         if (mapping.find(edge.first) == mapping.end()) {
             ++n;
+            ori_id.push_back(edge.first);
             mapping.insert(make_pair(edge.first, n));
         }
         if (mapping.find(edge.second) == mapping.end()) {
             ++n;
+            ori_id.push_back(edge.second);
             mapping.insert(make_pair(edge.second, n));
         }
     }
@@ -26,12 +29,20 @@ FlowNetwork::FlowNetwork(vector<pair<int, int>> edges, double g) {
         add_edge(v, u, 1);
     }
 
-    for (int u = 1; u < n - 1; u++) {
-        add_edge(0, u, adj[u].size() / 4.0);
-    }
-
-    for (int u = 1; u < n - 1; u++) {
-        add_edge(u, n - 1, g);
+    if (LDSvalidate) {
+        for (int u = 1; u < n - 1; u++) {
+            add_edge(u, n - 1, edges.size() + 2 * g - adj[u].size() / 2.0);
+        }
+        for (int u = 1; u < n - 1; u++) {
+            add_edge(0, u, edges.size());
+        }
+    } else {
+        for (int u = 1; u < n - 1; u++) {
+            add_edge(0, u, adj[u].size() / 4.0);
+        }
+        for (int u = 1; u < n - 1; u++) {
+            add_edge(u, n - 1, g);
+        }
     }
 }
 
@@ -131,4 +142,23 @@ double FlowNetwork::get_maxflow(int s, int t, bool need_initial) {
     }
 
     return excess[t];
+}
+
+double
+FlowNetwork::get_mincut(int s, int t, std::vector<int> &S, bool need_initial) {
+    auto ret = get_maxflow(s, t, need_initial);
+    S.clear();
+
+    for (int v = 0; v < n; v++) {
+//        printf("dist [%d] %d\n", v, dist[v]);
+        if (dist[v] >= n) {
+            if (v == s)
+                continue;
+            if (v > 0 && v < n) {
+                S.push_back(ori_id[v]);
+            }
+        }
+    }
+
+    return ret;
 }

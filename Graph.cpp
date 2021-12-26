@@ -13,7 +13,10 @@ Graph::Graph(FILE *file, int NT, int topk) {
     r.resize(n);
     deg.resize(n);
     selected.resize(n, true);
+    active.resize(n, true);
     lds_num.resize(n, -1);
+    num_verify = 0;
+    veri_vtx.resize(n, 0);
     rho_gu.resize(n);
     rho_u.resize(n);
     rho_l.resize(n);
@@ -249,14 +252,14 @@ void Graph::check_sg() {
         nsg = nag.size();
         double minr = m;
         for (int i = 0; i < nsg; i++) {
-            printf("nsg %d %d ", i, nag[i]);
+//            printf("nsg %d %d ", i, nag[i]);
             double tmp_r = m;
             for (int j = cur; j < cur + nag[i]; j++) {
                 sg[slt_nodes[j]] = i;
                 tmp_r = min(tmp_r, r[slt_nodes[j]]);
                 minr = min(minr, r[slt_nodes[j]]);
             }
-            printf("%.4f %.4f\n", minr, tmp_r);
+//            printf("%.4f %.4f\n", minr, tmp_r);
             cur += nag[i];
         }
     }
@@ -580,6 +583,9 @@ void Graph::pruning() {
             if (rho_u[slt_nodes[j]] < rho_l[slt_nodes[j]]) {
                 selected[slt_nodes[j]] = false;
             }
+            if (active[slt_nodes[j]]) {
+                rho_gu[slt_nodes[j]] = min(rho_gu[slt_nodes[j]], max_r[i]);
+            }
         }
         cur += nag[i];
     }
@@ -624,11 +630,20 @@ void Graph::pruning() {
         }
     }
     vector<int> tmp_nodes;
+    vector<bool> inactive_sg(nsg, false);
     for (auto u : slt_nodes) {
         if (selected[u])
             tmp_nodes.push_back(u);
+        else
+            inactive_sg[sg[u]] = true;
     }
     slt_nodes = tmp_nodes;
+
+    for (auto u : slt_nodes) {
+        if (inactive_sg[sg[u]]) {
+            active[u] = false;
+        }
+    }
 
     vector<int> tmp_edges;
     for (auto e : slt_edges) {
@@ -690,7 +705,7 @@ void Graph::findLDS() {
             double max_flow = fn.get_maxflow(0, fn.n-1);
             if (abs(max_flow - slt_edges.size()) <= 1e-3) {
                 printf("ldses candidate: #nodes %lu #edges %lu\n", slt_nodes.size(), slt_edges.size());
-                if (verify_LDS()) {
+                if (verify_LDS(g)) {
                     connected_components();
                     int cur_u = 0;
                     for (auto pr : cmpt) {
@@ -772,8 +787,10 @@ void Graph::prune_by_core() {
         }
     }
 
+    vector<int> vtx;
     while (!q.empty()) {
         int u = q.front(); q.pop();
+        vtx.push_back(u);
         for (auto v : adj[u]) {
             if (selected[v] && pos[u] > pos[v]) {
                 --deg[v];
@@ -794,24 +811,93 @@ void Graph::prune_by_core() {
         }
     }
     printf("#slt node %lu #slt edge %lu\n", slt_nodes.size(), slt_edges.size());
+
+    sort(vtx.begin(), vtx.end(), [this](int a, int b)->bool {
+            return rho_gu[a] > rho_gu[b];
+    });
+    for (auto u : vtx) {
+        if (active[u]) {
+            active[u] = false;
+            double threshold = rho_gu[u] + DELTA;
+            q.push(u);
+            while (!q.empty()) {
+                int v = q.front(); q.pop();
+                for (auto w : adj[v]) {
+                    if (active[w] && rho_l[w] <= threshold) {
+                        active[w] = false;
+                        q.push(w);
+                    }
+                }
+            }
+        }
+    }
+
+    int cnt = 0;
+    for (int i = 0; i < n; i++) {
+        if (active[i]) ++cnt;
+    }
+    printf("#active nodes %d\n", cnt);
 }
 
-bool Graph::verify_LDS() {
+bool Graph::verify_LDS(double g) {
     for (auto u : slt_nodes) {
         lds_num[u] = ldses.size();
     }
     bool flag = true;
-//    for (auto u : slt_nodes) {
-//        for (auto v : adj[u]) {
-//            if (lds_num[u] != lds_num[v] && rho_l[u] <= rho_gu[v]) {
-//                flag = false;
-//                break;
-//            }
-//        }
-//        if (!flag) break;
-//    }
+
+    ++num_verify;
+    queue<int> q;
+    vector<pair<int, int>> tmp_edges;
+    for (auto u : slt_nodes) {
+        if (veri_vtx[u] != num_verify) {
+            q.push(u);
+            veri_vtx[u] = num_verify;
+        }
+        while (!q.empty()) {
+            int v = q.front(); q.pop();
+            for (auto w : adj[v]) {
+                if (rho_gu[w] >= g) {
+                    if (veri_vtx[w] != num_verify) {
+                        if (lds_num[w] != -1 && lds_num[w] < lds_num[u]) {
+                            flag = false;
+                        }
+                        veri_vtx[w] = num_verify;
+                        q.push(w);
+                    }
+                    if (v < w)
+                        tmp_edges.emplace_back(v, w);
+                }
+
+            }
+        }
+    }
+
     if (flag) return flag;
 
+    flag = true;
+    printf("size of tmp edges %lu\n", tmp_edges.size());
+    FlowNetwork fn = FlowNetwork(tmp_edges, g - 1.0 / n / n, true);
+    vector<int> tmp_nodes;
+    fn.get_mincut(0, fn.n - 1, tmp_nodes);
+    ++num_verify;
+    printf("size of tmp nodes %lu\n", tmp_nodes.size());
+    for (auto u : tmp_nodes) {
+//        printf("%d ", u);
+        veri_vtx[u] = num_verify;
+    }
+    printf("\n");
+    for (auto u : slt_nodes) {
+        for (auto v : adj[u]) {
+            if (lds_num[v] != lds_num[u] && veri_vtx[v] == num_verify) {
+                flag = false;
+                break;
+            }
+        }
+        if (!flag) break;
+    }
+
+    if (flag) return flag;
+    printf("validate failed\n");
     //TODO add further verification
 
     for (auto u : slt_nodes) {

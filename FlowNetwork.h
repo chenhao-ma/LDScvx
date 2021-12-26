@@ -24,10 +24,11 @@ public:
     vector <vector <int>> B;
     vector<int> nums;
     map<int, int> mapping;
+    std::vector<int> ori_id;
     int b;
     double m;
 
-    FlowNetwork(vector<pair<int, int>> edges, double g);
+    FlowNetwork(vector<pair<int, int>> edges, double g, bool LDSvalidate = false);
 
     void add_edge(int from, int to, double cap);
 
@@ -42,6 +43,10 @@ public:
     void discharge (int v);
 
     double get_maxflow(int s, int t, bool need_initial = true);
+
+    double get_mincut(int s, int t, std::vector<int> &S, bool need_initial = true);
+
+
 };
 
 
