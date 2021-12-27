@@ -601,6 +601,16 @@ void Graph::pruning() {
         }
     }
 
+//    for (auto u : slt_nodes) {
+//        if (selected[u]) {
+//            for (auto v : adj[u]) {
+//                if (rho_l[v] > rho_u[u]) {
+//                    selected[u] = false;
+//                }
+//            }
+//        }
+//    }
+
     for (auto e : slt_edges) {
         int u = edges[e].first;
         int v = edges[e].second;
@@ -856,26 +866,32 @@ bool Graph::verify_LDS(double g) {
         while (!q.empty()) {
             int v = q.front(); q.pop();
             for (auto w : adj[v]) {
+//                if (slt_nodes.size() == 13 && slt_edges.size() == 68) printf("%d %d %.4f %.4f\n", v, w, rho_gu[w], rho_l[w]);
                 if (rho_gu[w] >= g) {
                     if (veri_vtx[w] != num_verify) {
                         if (lds_num[w] != -1 && lds_num[w] < lds_num[u]) {
                             flag = false;
                         }
-                        veri_vtx[w] = num_verify;
-                        q.push(w);
+//                        veri_vtx[w] = num_verify;
+//                        q.push(w);
+                        if (rho_l[w] <= g) {
+                            veri_vtx[w] = num_verify;
+                            q.push(w);
+                        } else {
+                            flag = false;
+                            tmp_edges.emplace_back(v, v);
+                        }
                     }
-                    if (v < w)
+                    if (v < w && rho_l[w] <= g)
                         tmp_edges.emplace_back(v, w);
                 }
-
             }
         }
     }
-
+    printf("size of tmp edges %lu\n", tmp_edges.size());
     if (flag) return flag;
 
     flag = true;
-    printf("size of tmp edges %lu\n", tmp_edges.size());
     FlowNetwork fn = FlowNetwork(tmp_edges, g - 1.0 / n / n, true);
     vector<int> tmp_nodes;
     fn.get_mincut(0, fn.n - 1, tmp_nodes);

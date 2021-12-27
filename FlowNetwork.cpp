@@ -21,17 +21,21 @@ FlowNetwork::FlowNetwork(vector<pair<int, int>> edges, double g, bool LDSvalidat
     }
     n += 2;
     adj.resize(n);
-
+    vector<int> loops(n, 0);
     for (auto &edge : edges) {
         int u = mapping.find(edge.second)->second;
         int v = mapping.find(edge.first)->second;
-        add_edge(u, v, 1);
-        add_edge(v, u, 1);
+        if (u != v) {
+            add_edge(u, v, 1);
+            add_edge(v, u, 1);
+        } else {
+            ++loops[u];
+        }
     }
 
     if (LDSvalidate) {
         for (int u = 1; u < n - 1; u++) {
-            add_edge(u, n - 1, edges.size() + 2 * g - adj[u].size() / 2.0);
+            add_edge(u, n - 1, edges.size() + 2 * g - adj[u].size() / 2.0 - 2.0 * loops[u]);
         }
         for (int u = 1; u < n - 1; u++) {
             add_edge(0, u, edges.size());
