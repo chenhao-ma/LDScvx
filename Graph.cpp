@@ -7,7 +7,7 @@
 
 Graph::Graph(FILE *file, int NT, int topk) {
     printf("Graph construction\n");
-    fscanf(file, "%d%d", &n, &m);
+    fscanf(file, "%d%lu", &n, &m);
 
     adj.resize(n);
     r.resize(n);
@@ -137,6 +137,7 @@ void Graph::pava() {
 }
 
 void Graph::check_sg() {
+    if (nsg <= 1) return;
     sort(slt_edges.begin(), slt_edges.end(), [this](int a, int b)->bool {
         int a1 = min(sg[edges[a].first], sg[edges[a].second]);
         int a2 = max(sg[edges[a].first], sg[edges[a].second]);
@@ -176,7 +177,9 @@ void Graph::check_sg() {
     double min_r = r[slt_nodes[0]];
     cur = 0;
     vector<int> cpt(bin);
+    clock_t start = clock();
     for (int i = 0; i < nsg - 1; i++) {
+//        printf("checking %d\n", i);
         for (int j = cur; j < cur + nag[i]; j++) {
             min_r = min(min_r, r[slt_nodes[j]]);
         }
@@ -186,6 +189,10 @@ void Graph::check_sg() {
 //        printf("%.4f %.4f\n", min_t, max_t);
         queue<tuple<int, int, double>> q;
         valid[i] = true;
+//        if (i % 3 != 0) {
+//            valid[i] = false;
+//            continue;
+//        }
         for (int j = 0; j <= i; j++) {
             while (cpt[j] < bin[j + 1]) {
                 int e = slt_edges[cpt[j]];
@@ -233,6 +240,8 @@ void Graph::check_sg() {
                 alpha[e] = get<2>(tp);
             }
         }
+        clock_t cur_t = clock();
+//        printf("used %.4f\n", (double) (cur_t - start) / CLOCKS_PER_SEC);
     }
 
     check_first = (nsg == 1) || valid[0];
@@ -676,6 +685,11 @@ void Graph::pruning() {
         stk_nodes.push(t_nodes);
         slt_nodes.resize(n_nodes);
 
+        if (sg[t_nodes[0]] > sg[edges[slt_edges.back()].first]) {
+            stk_nodes.pop();
+            continue;
+        }
+
         int n_edges = slt_edges.size() - 1;
         while (n_edges > 0 && sg[edges[slt_edges[n_edges]].first] == sg[edges[slt_edges.back()].first]) {
             --n_edges;
@@ -684,7 +698,7 @@ void Graph::pruning() {
         vector<int> t_edges(slt_edges.begin() + n_edges, slt_edges.end());
         stk_edges.push(t_edges);
         slt_edges.resize(n_edges);
-
+        printf("sg %d %d %lu %lu\n", sg[t_nodes[0]], sg[edges[t_edges[0]].first], t_nodes.size(), t_edges.size());
         stk_CT.push(CT);
     }
 }
@@ -694,16 +708,25 @@ void Graph::findLDS() {
     prune_by_core();
     CT = 0;
     while (!slt_nodes.empty() || !stk_nodes.empty()) {
+        clock_t start = clock();
         if (slt_nodes.empty()) {
             slt_nodes = stk_nodes.top(); stk_nodes.pop();
             slt_edges = stk_edges.top(); stk_edges.pop();
             CT = stk_CT.top(); stk_CT.pop();
         }
         frank_wolfe();
+        clock_t t_fw = clock();
+        printf("fw time: %.4f\n", double(t_fw - start) / CLOCKS_PER_SEC);
         CT += NT;
         pava();
+        clock_t t_pv = clock();
+        printf("pava time: %.4f\n", double(t_pv - t_fw) / CLOCKS_PER_SEC);
         check_sg();
+        clock_t t_check_sg = clock();
+        printf("check sg time: %.4f\n", double(t_check_sg - t_pv) / CLOCKS_PER_SEC);
         pruning();
+        clock_t t_prune = clock();
+        printf("pruning time: %.4f\n", double(t_prune - t_check_sg) / CLOCKS_PER_SEC);
         if (!slt_nodes.empty() && check_first) {
             double g = (double) slt_edges.size() / slt_nodes.size();
             vector<pair<int, int>> tmp_edges;
@@ -732,6 +755,8 @@ void Graph::findLDS() {
                 slt_edges.clear();
             }
         }
+        clock_t t_verify_LDS = clock();
+        printf("verifyLDS time: %.4f\n", double(t_verify_LDS - t_prune) / CLOCKS_PER_SEC);
     }
 }
 

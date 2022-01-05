@@ -23,7 +23,7 @@ public:
 
 private:
     int n;
-    int m;
+    unsigned long m;
     int NT;
     int CT;
     int topk;
