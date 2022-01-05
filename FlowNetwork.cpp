@@ -42,7 +42,7 @@ FlowNetwork::FlowNetwork(vector<pair<int, int>> edges, double g, bool LDSvalidat
         }
     } else {
         for (int u = 1; u < n - 1; u++) {
-            add_edge(0, u, adj[u].size() / 4.0);
+            add_edge(0, u, adj[u].size() / 4.0 + loops[u]);
         }
         for (int u = 1; u < n - 1; u++) {
             add_edge(u, n - 1, g);
