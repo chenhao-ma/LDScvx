@@ -63,7 +63,7 @@ private:
     void pruning();
     void compute_core();
     void prune_by_core();
-    bool verify_LDS(double g);
+    bool verify_LDS(vector<int> & nodes, double g);
     int find_fa(int x);
     void connected_components();
 };

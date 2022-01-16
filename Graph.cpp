@@ -610,15 +610,15 @@ void Graph::pruning() {
         }
     }
 
-//    for (auto u : slt_nodes) {
-//        if (selected[u]) {
-//            for (auto v : adj[u]) {
-//                if (rho_l[v] > rho_u[u]) {
-//                    selected[u] = false;
-//                }
-//            }
-//        }
-//    }
+    for (auto u : slt_nodes) {
+        if (selected[u]) {
+            for (auto v : adj[u]) {
+                if (rho_l[v] > rho_u[u]) {
+                    selected[u] = false;
+                }
+            }
+        }
+    }
 
     for (auto e : slt_edges) {
         int u = edges[e].first;
@@ -737,20 +737,24 @@ void Graph::findLDS() {
             FlowNetwork fn = FlowNetwork(tmp_edges, g);
             double max_flow = fn.get_maxflow(0, fn.n-1);
             if (abs(max_flow - slt_edges.size()) <= 1e-3) {
-                printf("ldses candidate: #nodes %lu #edges %lu\n", slt_nodes.size(), slt_edges.size());
-                if (verify_LDS(g)) {
-                    connected_components();
-                    int cur_u = 0;
-                    for (auto pr : cmpt) {
-                        vector<int> tmp_nodes(slt_nodes.begin() + cur_u, slt_nodes.begin() + pr.first);
+                connected_components();
+                int cur_u = 0;
+                int cur_e = 0;
+                for (auto pr : cmpt) {
+                    vector<int> tmp_nodes(slt_nodes.begin() + cur_u, slt_nodes.begin() + pr.first);
+                    printf("ldses candidate: #nodes %lu #edges %d\n", tmp_nodes.size(), pr.second - cur_e);
+                    if (verify_LDS(tmp_nodes, g)) {
                         ldses.push_back(tmp_nodes);
                         lds_rho.push_back(g);
-                        cur_u = pr.first;
+                        if (ldses.size() >= topk)
+                            break;
                     }
-//                    ldses.push_back(slt_nodes);
-                    if (ldses.size() >= topk)
-                        break;
+                    cur_u = pr.first;
+                    cur_e = pr.second;
                 }
+//                    ldses.push_back(slt_nodes);
+                if (ldses.size() >= topk)
+                    break;
                 slt_nodes.clear();
                 slt_edges.clear();
             }
@@ -758,6 +762,8 @@ void Graph::findLDS() {
         clock_t t_verify_LDS = clock();
         printf("verifyLDS time: %.4f\n", double(t_verify_LDS - t_prune) / CLOCKS_PER_SEC);
     }
+
+
 }
 
 void Graph::compute_core() {
@@ -874,16 +880,25 @@ void Graph::prune_by_core() {
     printf("#active nodes %d\n", cnt);
 }
 
-bool Graph::verify_LDS(double g) {
-    for (auto u : slt_nodes) {
+bool Graph::verify_LDS(vector<int> & nodes, double g) {
+    for (auto u : nodes) {
+        for (auto v : adj[u]) {
+            if (rho_l[v] > g) {
+                printf("validate failed\n");
+                return false;
+            }
+        }
+    }
+    for (auto u : nodes) {
         lds_num[u] = ldses.size();
     }
     bool flag = true;
 
+
     ++num_verify;
     queue<int> q;
     vector<pair<int, int>> tmp_edges;
-    for (auto u : slt_nodes) {
+    for (auto u : nodes) {
         if (veri_vtx[u] != num_verify) {
             q.push(u);
             veri_vtx[u] = num_verify;
@@ -914,6 +929,14 @@ bool Graph::verify_LDS(double g) {
         }
     }
     printf("size of tmp edges %lu\n", tmp_edges.size());
+//    if (nodes.size() == 8 && tmp_edges.size() == 22) {
+//        for (auto u : nodes) {
+//            printf("node %d\n", u);
+//        }
+//        for (auto e : tmp_edges) {
+//            printf("edge %d %d\n", e.first, e.second);
+//        }
+//    }
     if (flag) return flag;
 
     flag = true;
@@ -927,7 +950,7 @@ bool Graph::verify_LDS(double g) {
         veri_vtx[u] = num_verify;
     }
     printf("\n");
-    for (auto u : slt_nodes) {
+    for (auto u : nodes) {
         for (auto v : adj[u]) {
             if (lds_num[v] != lds_num[u] && veri_vtx[v] == num_verify) {
                 flag = false;
@@ -939,9 +962,8 @@ bool Graph::verify_LDS(double g) {
 
     if (flag) return flag;
     printf("validate failed\n");
-    //TODO add further verification
 
-    for (auto u : slt_nodes) {
+    for (auto u : nodes) {
         lds_num[u] = -1;
     }
     return false;
