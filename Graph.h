@@ -31,6 +31,7 @@ private:
     int max_d;
     int num_verify;
     bool check_first = false;
+    bool fn_baseline = false;
     vector<vector<int>> adj;
     vector<bool> selected;
     vector<bool> active;

@@ -707,6 +707,10 @@ void Graph::findLDS() {
     compute_core();
     prune_by_core();
     CT = 0;
+    double fw_time = 0;
+    double sg_time = 0;
+    double pr_time = 0;
+    double mf_time = 0;
     while (!slt_nodes.empty() || !stk_nodes.empty()) {
         clock_t start = clock();
         if (slt_nodes.empty()) {
@@ -716,6 +720,7 @@ void Graph::findLDS() {
         }
         frank_wolfe();
         clock_t t_fw = clock();
+        fw_time += double(t_fw - start) / CLOCKS_PER_SEC;
         printf("fw time: %.4f\n", double(t_fw - start) / CLOCKS_PER_SEC);
         CT += NT;
         pava();
@@ -723,9 +728,11 @@ void Graph::findLDS() {
         printf("pava time: %.4f\n", double(t_pv - t_fw) / CLOCKS_PER_SEC);
         check_sg();
         clock_t t_check_sg = clock();
+        sg_time += double(t_check_sg - t_fw) / CLOCKS_PER_SEC;
         printf("check sg time: %.4f\n", double(t_check_sg - t_pv) / CLOCKS_PER_SEC);
         pruning();
         clock_t t_prune = clock();
+        pr_time += double(t_prune - t_check_sg) / CLOCKS_PER_SEC;
         printf("pruning time: %.4f\n", double(t_prune - t_check_sg) / CLOCKS_PER_SEC);
         if (!slt_nodes.empty() && check_first) {
             double g = (double) slt_edges.size() / slt_nodes.size();
@@ -760,9 +767,11 @@ void Graph::findLDS() {
             }
         }
         clock_t t_verify_LDS = clock();
+        mf_time += double(t_verify_LDS - t_prune) / CLOCKS_PER_SEC;
         printf("verifyLDS time: %.4f\n", double(t_verify_LDS - t_prune) / CLOCKS_PER_SEC);
     }
 
+    printf("fw %.4f sec, sg %.4f sec, pr %.4f sec, mf %.4f sec\n", fw_time, sg_time, pr_time, mf_time);
 
 }
 
@@ -907,23 +916,37 @@ bool Graph::verify_LDS(vector<int> & nodes, double g) {
             int v = q.front(); q.pop();
             for (auto w : adj[v]) {
 //                if (slt_nodes.size() == 13 && slt_edges.size() == 68) printf("%d %d %.4f %.4f\n", v, w, rho_gu[w], rho_l[w]);
-                if (rho_gu[w] >= g) {
-                    if (veri_vtx[w] != num_verify) {
-                        if (lds_num[w] != -1 && lds_num[w] < lds_num[u]) {
-                            flag = false;
-                        }
-//                        veri_vtx[w] = num_verify;
-//                        q.push(w);
-                        if (rho_l[w] <= g) {
+                if (fn_baseline) {
+                    if (rho_gu[w] >= g) {
+                        if (veri_vtx[w] != num_verify) {
+                            if (lds_num[w] != -1 && lds_num[w] < lds_num[u]) {
+                                flag = false;
+                            }
                             veri_vtx[w] = num_verify;
                             q.push(w);
-                        } else {
-                            flag = false;
-                            tmp_edges.emplace_back(v, v);
                         }
+                        if (v < w)
+                            tmp_edges.emplace_back(v, w);
                     }
-                    if (v < w && rho_l[w] <= g)
-                        tmp_edges.emplace_back(v, w);
+                } else {
+                    if (rho_gu[w] >= g) {
+                        if (veri_vtx[w] != num_verify) {
+                            if (lds_num[w] != -1 && lds_num[w] < lds_num[u]) {
+                                flag = false;
+                            }
+//                        veri_vtx[w] = num_verify;
+//                        q.push(w);
+                            if (rho_l[w] <= g) {
+                                veri_vtx[w] = num_verify;
+                                q.push(w);
+                            } else {
+                                flag = false;
+                                tmp_edges.emplace_back(v, v);
+                            }
+                        }
+                        if (v < w && rho_l[w] <= g)
+                            tmp_edges.emplace_back(v, w);
+                    }
                 }
             }
         }
