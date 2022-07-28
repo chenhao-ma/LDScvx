@@ -24,7 +24,7 @@ and [SNAP](https://snap.stanford.edu/data/).
 After download and compile the code, the users can type `./LDScvx ` to see the usage of the program.
 For example, `./LDScvx -g AM/graph.txt -k 5`  is running `LDScvx` on AM dataset to find top-5 LDS's.
 
-## How to reproduce the experiments
+## How to reproduce the experimental results
 To reproduce Figure 8, run the `LDScvx` (ours) and `LDSflow` (the codes for KDD15) for the 9 datasets. For example, `./LDScvx -g AM/graph.txt -k 5`  is running `LDScvx` on AM dataset to find top-5 LDS's. The last line of the output contains the running time.
 
 For Figure 9, run the two algorithms for `k = 5, 10, 15, 20, 25`, respectively, and record the running time.
